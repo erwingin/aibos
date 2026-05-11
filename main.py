@@ -2,7 +2,7 @@ import asyncio
 import requests
 import json
 from memory import init_db
-from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port
+from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan
 
 # Riwayat obrolan agar AI ingat konteks pembicaraan
 riwayat_pesan = []

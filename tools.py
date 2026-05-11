@@ -6,7 +6,7 @@ from memory import DB_NAME, cek_memori_hash
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
-from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan
+#
 
 # Memuat "Otak Pembaca" SBERT (Ini akan terunduh otomatis saat pertama kali dijalankan)
 print("⏳ Memuat model SBERT untuk Perpustakaan Ilmu...")
