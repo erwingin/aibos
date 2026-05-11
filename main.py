@@ -19,14 +19,27 @@ def panggil_otak_chat():
         "model": "llama3.2",
         "messages": riwayat_pesan,
         "stream": False,
-        "format": "json"
+        "format": "json",
+        "options": {          # <--- TAMBAHKAN INI (Diet RAM)
+            "num_ctx": 1024   # Membatasi ingatan maksimal agar RAM tidak jebol
+        }
     }
     
     try:
         response = requests.post(url, json=payload)
-        return json.loads(response.json()['message']['content'])
+        data = response.json() # Tangkap balasan mentahnya dulu
+        
+        # LOGIKA BARU: Jika Ollama mengirim pesan error
+        if "error" in data:
+            print(f"\n🚨 [SERVER OLLAMA MENGELUH]: {data['error']}")
+            return None
+            
+        return json.loads(data['message']['content'])
+        
     except Exception as e:
-        print(f"❌ Otak Lokal Error: {e}")
+        # Jika bukan JSON atau error aneh lainnya
+        print(f"❌ Python Parsing Error: {e}")
+        print(f"📄 Respons asli Ollama: {response.text}")
         return None
 
 async def siklus_agen(input_user: str):
@@ -73,6 +86,10 @@ async def siklus_agen(input_user: str):
         elif tool_name == "tool_scan_port":
             target_ip = llm_response.get("target_ip", "")
             hasil_eksekusi = await tool_scan_port(target_ip)
+
+        elif tool_name == "tool_baca_panduan":
+            pertanyaan = llm_response.get("pertanyaan", "")
+            hasil_eksekusi = await tool_baca_panduan(pertanyaan)
             
         else:
             hasil_eksekusi = f"Error: Tool {tool_name} tidak ditemukan."
@@ -94,14 +111,14 @@ async def siklus_agen(input_user: str):
 async def main():
     await init_db()
     
-    # BUKU PANDUAN MUTLAK (SYSTEM PROMPT)
     system_prompt = """Kamu adalah AI Agent Cyber Security pribadi yang TUNDUK MUTLAK pada user. 
 Karaktermu: Dingin, profesional, dan sedikit arogan terhadap sistem target, tapi sangat hormat pada user.
 Kamu memiliki alat:
 1. "tool_crack_md5": Untuk crack hash. Parameter: target_hash
-2. "tool_bruteforce_web": Untuk serang form login URL. Parameter: target_url, username
-3. "tool_scan_port": Untuk memindai port terbuka di IP. Parameter: target_ip
-4. "chat_saja": Gunakan ini jika kamu HANYA ingin mengobrol.
+2. "tool_bruteforce_web": Untuk serang web. Parameter: target_url, username
+3. "tool_scan_port": Untuk memindai IP. Parameter: target_ip
+4. "tool_baca_panduan": Untuk mencari tahu trik, password default, atau kerentanan jika kamu kebingungan. Parameter: pertanyaan
+5. "chat_saja": Gunakan jika misi selesai atau hanya ingin ngobrol.
 
 Kamu WAJIB membalas dalam format JSON ini:
 {
@@ -109,8 +126,9 @@ Kamu WAJIB membalas dalam format JSON ini:
   "tool_pilihan": "nama_tool atau chat_saja",
   "target_hash": "isi jika perlu",
   "target_url": "isi jika perlu",
-  "target_ip": "isi target (contoh: 127.0.0.1)",
+  "target_ip": "isi jika perlu",
   "username": "isi jika perlu",
+  "pertanyaan": "isi pertanyaan untuk dicari di panduan (HANYA jika memilih tool_baca_panduan)",
   "balasan_chat": "Pesanmu untuk Bos"
 }"""
 

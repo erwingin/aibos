@@ -1,0 +1,3 @@
+Sistem Kado Rahasia di lab internal biasanya menggunakan password "jamal123".
+Jika melihat port 22 terbuka, jangan di-brute force karena ada sistem fail2ban, lebih baik lapor saja.
+Hash MD5 yang sering digunakan di lab ini biasanya bernilai "admin" atau "1".

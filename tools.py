@@ -3,11 +3,58 @@ import aiosqlite
 import aiohttp
 import asyncio
 from memory import DB_NAME, cek_memori_hash
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan
+
+# Memuat "Otak Pembaca" SBERT (Ini akan terunduh otomatis saat pertama kali dijalankan)
+print("⏳ Memuat model SBERT untuk Perpustakaan Ilmu...")
+sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+print("✅ Model SBERT siap!")
 
 # ==========================================
 # GUDANG SENJATA (FUNGSI DETERMINISTIK)
 # ==========================================
 
+async def tool_baca_panduan(pertanyaan: str) -> str:
+    """
+    Membaca dokumen_rahasia.txt dan mencari kalimat yang paling relevan dengan pertanyaan.
+    """
+    print(f"📚 [EKSEKUTOR] Mencari info di buku panduan tentang: '{pertanyaan}'...")
+    
+    try:
+        # Membaca file txt
+        with open("dokumen_rahasia.txt", "r", encoding="utf-8") as f:
+            teks = f.read()
+        
+        # Memotong teks menjadi per baris (kita anggap 1 baris = 1 ilmu)
+        baris_ilmu = [b.strip() for b in teks.split('\n') if b.strip()]
+        
+        if not baris_ilmu:
+            return "❌ [INFO] Dokumen rahasia kosong."
+
+        # MENGUBAH TEKS MENJADI VEKTOR MATEMATIKA
+        vektor_dokumen = sbert_model.encode(baris_ilmu)
+        vektor_pertanyaan = sbert_model.encode([pertanyaan])
+
+        # Menghitung kemiripan (seberapa dekat jarak vektor pertanyaan dengan dokumen)
+        skor_kemiripan = cosine_similarity(vektor_pertanyaan, vektor_dokumen)[0]
+        
+        # Mengambil ilmu dengan skor paling mirip
+        indeks_terbaik = np.argmax(skor_kemiripan)
+        skor_tertinggi = skor_kemiripan[indeks_terbaik]
+
+        # Jika skornya di atas 0.3 (cukup relevan), kita berikan ke AI
+        if skor_tertinggi > 0.3: 
+            jawaban = baris_ilmu[indeks_terbaik]
+            return f"📖 [PANDUAN DITEMUKAN] (Akurasi: {skor_tertinggi:.2f}):\n{jawaban}"
+        else:
+            return "❌ [INFO] Tidak ada panduan yang relevan untuk situasi ini."
+            
+    except FileNotFoundError:
+        return "❌ [ERROR] File dokumen_rahasia.txt belum dibuat."
+    
 async def tool_crack_md5(target_hash: str, wordlist: list) -> str:
     """
     Fungsi untuk melakukan Brute Force pada hash MD5.
