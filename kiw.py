@@ -79,6 +79,7 @@ def mine_worker(core_id, num_cores, nonce_prefix, difficulty_bits, stop_event, r
 # --- FUNGSI MANAJER MULTIPROCESSING ---
 def solve_pow_multicore(nonce_prefix, difficulty_bits, timeout_seconds=120):
     num_cores = multiprocessing.cpu_count()
+    #num_cores = 1
     print(f"[*] Mulai Mining... Menggunakan {num_cores} Core CPU.")
     print(f"[*] Target: {difficulty_bits} bit nol (Timeout: {timeout_seconds}s)")
     
