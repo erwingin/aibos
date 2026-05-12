@@ -12,34 +12,40 @@ riwayat_pesan = []
 # ==========================================
 
 def panggil_otak_chat():
-    # Contoh: "https://cuddly-bassoon-11434.app.github.dev/api/chat"
-    # Tambahkan api/chat di paling ujung (tanpa garis miring lagi setelah kata chat)
-    url = "https://cautious-eureka-5vq7w4q45q9w2v5p4-11434.app.github.dev/api/chat"
+    url = "https://cautious-eureka-5vq7w4q45q9w2v5p4-11434.app.github.dev/api/chat" # Tetap gunakan URL Anda
     
     payload = {
-        "model": "llama3.2",  # Kembali gunakan Llama 3.2 yang pintar!
+        "model": "llama3.2",
         "messages": riwayat_pesan,
-        "stream": False,
+        "stream": True,  # <--- 1. UBAH INI JADI TRUE
         "format": "json"
-        # HAPUS bagian "options": {"num_ctx": 1024} 
-        # Si Otak sekarang punya 4GB RAM utuh sendirian, tidak perlu diet lagi!
     }
     
     try:
-        response = requests.post(url, json=payload, timeout=2000)
-        data = response.json() # Tangkap balasan mentahnya dulu
+        # 2. Tambahkan stream=True di sini agar Python tidak menunggu sampai selesai
+        response = requests.post(url, json=payload, stream=True)
         
-        # LOGIKA BARU: Jika Ollama mengirim pesan error
-        if "error" in data:
-            print(f"\n🚨 [SERVER OLLAMA MENGELUH]: {data['error']}")
+        if response.status_code != 200:
+            print(f"🚨 [KONEKSI GAGAL]: {response.status_code} - {response.text}")
             return None
-            
-        return json.loads(data['message']['content'])
+
+        teks_lengkap = ""
+        # 3. Menangkap potongan data kata-demi-kata agar GitHub tidak Timeout
+        for baris in response.iter_lines():
+            if baris:
+                data = json.loads(baris)
+                if "error" in data:
+                    print(f"\n🚨 [OLLAMA ERROR]: {data['error']}")
+                    return None
+                
+                potongan_teks = data.get("message", {}).get("content", "")
+                teks_lengkap += potongan_teks
+                
+        # 4. Setelah AI selesai berpikir sepenuhnya, jadikan JSON
+        return json.loads(teks_lengkap)
         
     except Exception as e:
-        # Jika bukan JSON atau error aneh lainnya
         print(f"❌ Python Parsing Error: {e}")
-        print(f"📄 Respons asli Ollama: {response.text}")
         return None
 
 async def siklus_agen(input_user: str):
