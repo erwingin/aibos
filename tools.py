@@ -1,4 +1,5 @@
 import hashlib
+import asyncio
 import aiosqlite
 import aiohttp
 import asyncio
@@ -90,6 +91,92 @@ async def tool_crack_md5(target_hash: str, wordlist: list) -> str:
         await db.commit()
     
     return f"❌ [GAGAL] Brute force selesai. Tidak ada yang cocok di wordlist."
+
+async def tool_eksekusi_python(kode_python: str) -> str:
+    """
+    Menyimpan string kode_python ke dalam file sementara dan menjalankannya di OS.
+    """
+    print("⚡ [EKSEKUTOR] AI Sedang membuat dan menjalankan senjata kodenya sendiri...")
+    
+    nama_file = "senjata_sementara.py"
+    
+    try:
+        # 1. AI Menulis kode ke dalam file
+        with open(nama_file, "w", encoding="utf-8") as f:
+            f.write(kode_python)
+            
+        # 2. Kita suruh Linux menjalankan file tersebut
+        proses = await asyncio.create_subprocess_exec(
+            "python", nama_file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # 3. Kita beri batas waktu 15 detik agar komputer tidak hang 
+        # jika AI membuat kode yang looping tanpa henti (infinite loop)
+        stdout, stderr = await asyncio.wait_for(proses.communicate(), timeout=15.0)
+        
+        output = stdout.decode().strip()
+        error = stderr.decode().strip()
+        
+        # 4. Kembalikan hasilnya ke Otak AI
+        if proses.returncode == 0:
+            return f"✅ [EKSEKUSI BERHASIL]:\n{output}"
+        else:
+            return f"❌ [EKSEKUSI GAGAL (SYNTAX ERROR)]:\n{error}\n(Sistem -> AI: Perbaiki kodemu dan coba lagi!)"
+            
+    except asyncio.TimeoutError:
+        proses.kill()
+        return "❌ [ERROR] Eksekusi dihentikan paksa karena terlalu lama (Timeout > 15 detik). Mungkin kodemu mengalami Infinite Loop."
+    except Exception as e:
+        return f"❌ [ERROR SISTEM FATAL]: {e}"
+
+async def tool_analisis_keamanan(target_url: str) -> str:
+    """
+    Melakukan audit cepat pada URL target untuk mencari kelemahan dasar.
+    """
+    print(f"🕵️ [EKSEKUTOR] Melakukan audit keamanan (Vulnerability Scan) pada {target_url}...")
+    laporan = []
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(target_url, timeout=5) as response:
+                headers = response.headers
+                html = await response.text()
+                html_lower = html.lower()
+                
+                # 1. Cek Protokol (HTTP vs HTTPS)
+                if target_url.startswith("http://"):
+                    laporan.append("- ⚠️ URL menggunakan HTTP biasa (Rentan penyadapan/Sniffing).")
+                
+                # 2. Cek Kebocoran Identitas Server
+                server_info = headers.get("Server", "")
+                if server_info:
+                    laporan.append(f"- ⚠️ Informasi Server Bocor: '{server_info}'. Hacker bisa mencari exploit khusus untuk versi ini.")
+                
+                # 3. Cek Keamanan Header (Clickjacking & XSS)
+                if "X-Frame-Options" not in headers:
+                    laporan.append("- ⚠️ Kelemahan Clickjacking: Header 'X-Frame-Options' tidak ditemukan.")
+                if "Content-Security-Policy" not in headers:
+                    laporan.append("- ⚠️ Rentan injeksi skrip (XSS): Header 'Content-Security-Policy' tidak ada.")
+                
+                # 4. Cek Form Login yang rapuh
+                if "<form" in html_lower and "password" in html_lower:
+                    if "csrf" not in html_lower:
+                        laporan.append("- ⚠️ Ditemukan Form Login, tapi tidak ada token CSRF. Rentan terhadap serangan Brute Force dan manipulasi form.")
+                        
+    except Exception as e:
+        return f"❌ [ERROR] Gagal melakukan audit. Detail: {e}"
+        
+    if laporan:
+        hasil = "\n".join(laporan)
+        return (
+            f"🔍 [HASIL AUDIT KEAMANAN - {target_url}]:\n"
+            f"{hasil}\n\n"
+            f"(Sistem -> AI: Rangkum dan laporkan kelemahan ini kepada Bos dengan gaya analis yang profesional!)"
+        )
+    else:
+        return f"✅ [HASIL AUDIT]: Tidak ditemukan kelemahan standar pada {target_url}. Web cukup aman."
 
 async def tool_bruteforce_web(target_url: str, username: str, wordlist: list) -> str:
     """

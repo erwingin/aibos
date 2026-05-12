@@ -2,7 +2,7 @@ import asyncio
 import requests
 import json
 from memory import init_db
-from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan
+from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan, tool_analisis_keamanan, tool_eksekusi_python
 
 # Riwayat obrolan agar AI ingat konteks pembicaraan
 riwayat_pesan = []
@@ -12,21 +12,21 @@ riwayat_pesan = []
 # ==========================================
 
 def panggil_otak_chat():
-    """Fungsi menembak ke endpoint /api/chat yang mendukung memori obrolan"""
-    url = "http://localhost:11434/api/chat"
+    # Contoh: "https://cuddly-bassoon-11434.app.github.dev/api/chat"
+    # Tambahkan api/chat di paling ujung (tanpa garis miring lagi setelah kata chat)
+    url = "https://cautious-eureka-5vq7w4q45q9w2v5p4-11434.app.github.dev/api/chat"
     
     payload = {
-        "model": "llama3.2",
+        "model": "llama3.2",  # Kembali gunakan Llama 3.2 yang pintar!
         "messages": riwayat_pesan,
         "stream": False,
-        "format": "json",
-        "options": {          # <--- TAMBAHKAN INI (Diet RAM)
-            "num_ctx": 1024   # Membatasi ingatan maksimal agar RAM tidak jebol
-        }
+        "format": "json"
+        # HAPUS bagian "options": {"num_ctx": 1024} 
+        # Si Otak sekarang punya 4GB RAM utuh sendirian, tidak perlu diet lagi!
     }
     
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=2000)
         data = response.json() # Tangkap balasan mentahnya dulu
         
         # LOGIKA BARU: Jika Ollama mengirim pesan error
@@ -87,6 +87,14 @@ async def siklus_agen(input_user: str):
             target_ip = llm_response.get("target_ip", "")
             hasil_eksekusi = await tool_scan_port(target_ip)
 
+        elif tool_name == "tool_analisis_keamanan":
+            target_url = llm_response.get("target_url", "")
+            hasil_eksekusi = await tool_analisis_keamanan(target_url)
+
+        elif tool_name == "tool_eksekusi_python":
+            kode_python = llm_response.get("kode_python", "")
+            hasil_eksekusi = await tool_eksekusi_python(kode_python)
+
         elif tool_name == "tool_baca_panduan":
             pertanyaan = llm_response.get("pertanyaan", "")
             hasil_eksekusi = await tool_baca_panduan(pertanyaan)
@@ -96,12 +104,18 @@ async def siklus_agen(input_user: str):
             
         print(hasil_eksekusi)
         
-        # INI KUNCI KREATIVITASNYA:
-        # AI melihat aksinya sendiri, mencatatnya, dan mengumpankannya KEMBALI ke otaknya!
+        # LOGIKA BARU: Mencegah Information Overload!
+        # Jika teksnya lebih dari 500 karakter, kita potong agar AI tidak pingsan membacanya.
+        if len(hasil_eksekusi) > 500:
+            hasil_laporan_ke_bos = hasil_eksekusi[:500] + "\n\n... [TEKS DIPOTONG KARENA TERLALU PANJANG] ..."
+        else:
+            hasil_laporan_ke_bos = hasil_eksekusi
+
+        # Memasukkan ingatan ke AI
         riwayat_pesan.append({"role": "assistant", "content": json.dumps(llm_response)})
         riwayat_pesan.append({
             "role": "user", 
-            "content": f"[SISTEM - HASIL DARI {tool_name}]:\n{hasil_eksekusi}\n\nEvaluasi hasil di atas. Jika gagal, coba strategi lain. Jika berhasil, berikan laporan akhir ke user di 'balasan_chat' dan set 'tool_pilihan' menjadi 'chat_saja'."
+            "content": f"[SISTEM - HASIL DARI {tool_name}]:\n{hasil_laporan_ke_bos}\n\nEvaluasi hasil di atas. Jika gagal, coba strategi lain. Jika berhasil, berikan laporan akhir ke user di 'balasan_chat' dan set 'tool_pilihan' menjadi 'chat_saja'."
         })
         # Loop akan berputar lagi, AI membaca hasil ini dan berpikir ulang!
 
@@ -118,7 +132,10 @@ Kamu memiliki alat:
 2. "tool_bruteforce_web": Untuk serang web. Parameter: target_url, username
 3. "tool_scan_port": Untuk memindai IP. Parameter: target_ip
 4. "tool_baca_panduan": Untuk mencari tahu trik, password default, atau kerentanan jika kamu kebingungan. Parameter: pertanyaan
-5. "chat_saja": Gunakan jika misi selesai atau hanya ingin ngobrol.
+5. "tool_analisis_keamanan": Untuk melakukan audit keamanan pada URL target. Parameter: target_url
+6. "tool_eksekusi_python": Untuk MENULIS dan MENJALANKAN kodemu sendiri. Parameter: kode_python (HANYA BERISI STRING KODE MURNI, TANPA TANDA KUTIP MARKDOWN/BACKTICK).
+7. "chat_saja": Gunakan jika misi selesai atau hanya ingin ngobrol.
+
 
 Kamu WAJIB membalas dalam format JSON ini:
 {
@@ -129,6 +146,8 @@ Kamu WAJIB membalas dalam format JSON ini:
   "target_ip": "isi jika perlu",
   "username": "isi jika perlu",
   "pertanyaan": "isi pertanyaan untuk dicari di panduan (HANYA jika memilih tool_baca_panduan)",
+  "target_url": "isi jika perlu",
+  "kode_python": "isi dengan kodemu di sini (ingat gunakan escape character \n untuk baris baru) jika menggunakan tool_eksekusi_python",
   "balasan_chat": "Pesanmu untuk Bos"
 }"""
 
