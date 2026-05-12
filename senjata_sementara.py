@@ -1,7 +1,6 @@
-"import requests
-password = "misuma123!"
-url = "https://jamalnggau.pythonanywhere.com/login" + "/login"
-data = {"password": password}
-response = requests.post(url, data=data)
-penerima = response.json()
-penerima
+import requests
+response = requests.get('https://haha-phi-lilac.vercel.app/login')
+html_response = response.text
+for line in html_response.splitlines():
+    if 'action=' in line or '<form' in line:
+        print(line)

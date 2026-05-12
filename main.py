@@ -2,7 +2,8 @@ import asyncio
 import requests
 import json
 from memory import init_db
-from tools import tool_crack_md5, tool_bruteforce_web, tool_scan_port, tool_baca_panduan, tool_analisis_keamanan, tool_eksekusi_python
+# Tambahkan tool_inspeksi_html di akhir
+from tools import tool_crack_md5, tool_bruteforce_web,tool_pencarian_internet, tool_scan_port, tool_scan_sqli, tool_baca_panduan, tool_analisis_keamanan, tool_eksekusi_python, tool_scrape_web, tool_inspeksi_html, tool_exploit_csrf
 
 # Riwayat obrolan agar AI ingat konteks pembicaraan
 riwayat_pesan = []
@@ -85,9 +86,22 @@ async def siklus_agen(input_user: str):
             
         elif tool_name == "tool_bruteforce_web":
             target_url = llm_response.get("target_url", "")
-            username = llm_response.get("username", "admin") 
-            words = ["admin", "12345", "password", "jamal123", "rahasia", "1"]
-            hasil_eksekusi = await tool_bruteforce_web(target_url, username, words)
+            username = llm_response.get("username", "")
+            # Ambil wordlist dari JSON AI, kalau tidak ada, pakai default ini
+            wordlist = llm_response.get("wordlist", ["admin", "12345", "password", "jamal123", "rahasia", "1"])
+            hasil_eksekusi = await tool_bruteforce_web(target_url, username, wordlist)
+
+        elif tool_name == "tool_scrape_web":
+            target_url = llm_response.get("target_url", "")
+            hasil_eksekusi = await tool_scrape_web(target_url)
+
+        elif tool_name == "tool_scan_sqli":
+            target_url = llm_response.get("target_url", "")
+            hasil_eksekusi = await tool_scan_sqli(target_url)
+
+        elif tool_name == "tool_inspeksi_html":
+            target_url = llm_response.get("target_url", "")
+            hasil_eksekusi = await tool_inspeksi_html(target_url)
 
         elif tool_name == "tool_scan_port":
             target_ip = llm_response.get("target_ip", "")
@@ -100,6 +114,38 @@ async def siklus_agen(input_user: str):
         elif tool_name == "tool_eksekusi_python":
             kode_python = llm_response.get("kode_python", "")
             hasil_eksekusi = await tool_eksekusi_python(kode_python)
+
+        elif tool_name == "tool_exploit_csrf":
+            target_url = llm_response.get("target_url", "")
+            params = llm_response.get("params", {})
+            hasil_eksekusi = await tool_exploit_csrf(target_url, params)
+
+        elif tool_name == "tool_pencarian_internet":
+            # 1. Ganti parsed_json dengan variabel asli Anda (kemungkinan llm_response)
+            # Jika kode Anda memakai nama lain untuk membaca JSON AI, sesuaikan ya!
+            data_ai = llm_response  
+            
+            # 2. Ambil parameter dengan cara super aman
+            params = data_ai.get("params", {})
+            
+            # Jaga-jaga kalau AI kumat halusinasi mengirim string JSON rusak
+            if isinstance(params, str):
+                try:
+                    params = json.loads(params.replace("'", '"'))
+                except:
+                    params = {}
+                    
+            # 3. Ekstrak query-nya (jika tidak ada di params, coba cari di luar)
+            query = params.get("query", "")
+            if not query:
+                query = data_ai.get("query", "")
+                
+            # 4. Beri nilai default jika AI benar-benar gagal mengirim query
+            if not query:
+                query = "Lagu Sahara penyanyi fakta" 
+                
+            # 5. Eksekusi senjatanya!
+            hasil_eksekusi = await tool_pencarian_internet(query)
 
         elif tool_name == "tool_baca_panduan":
             pertanyaan = llm_response.get("pertanyaan", "")
@@ -135,13 +181,17 @@ async def main():
 Karaktermu: Dingin, profesional, dan sedikit arogan terhadap sistem target, tapi sangat hormat pada user.
 Kamu memiliki alat:
 1. "tool_crack_md5": Untuk crack hash. Parameter: target_hash
-2. "tool_bruteforce_web": Untuk serang web. Parameter: target_url, username
+2. "tool_bruteforce_web": Untuk serang form login. Parameter: target_url, username, wordlist (array berisi daftar password yang ingin ditebak).
 3. "tool_scan_port": Untuk memindai IP. Parameter: target_ip
 4. "tool_baca_panduan": Untuk mencari tahu trik, password default, atau kerentanan jika kamu kebingungan. Parameter: pertanyaan
 5. "tool_analisis_keamanan": Untuk melakukan audit keamanan pada URL target. Parameter: target_url
 6. "tool_eksekusi_python": Untuk MENULIS dan MENJALANKAN kodemu sendiri. Parameter: kode_python (HANYA BERISI STRING KODE MURNI, TANPA TANDA KUTIP MARKDOWN/BACKTICK).
 7. "chat_saja": Gunakan jika misi selesai atau hanya ingin ngobrol.
-
+8. "tool_scrape_web": Untuk membaca isi teks/intelijen dari sebuah website. Parameter: target_url
+9. "tool_exploit_csrf": Untuk membuat file HTML jebakan CSRF. Parameter: target_url, params (object berisi key-value input form).
+10. "tool_inspeksi_html": Untuk membedah form, endpoint API, dan input parameter dari sebuah halaman. Parameter: target_url
+11. "tool_scan_sqli": Untuk mendeteksi kerentanan SQL Injection. Parameter: target_url.
+12. "tool_pencarian_internet": Untuk melakukan teknik OSINT / mencari informasi, berita, atau data apa pun di internet. Parameter: query (kata kunci pencarian).
 
 Kamu WAJIB membalas dalam format JSON ini:
 {
@@ -149,10 +199,10 @@ Kamu WAJIB membalas dalam format JSON ini:
   "tool_pilihan": "nama_tool atau chat_saja",
   "target_hash": "isi jika perlu",
   "target_url": "isi jika perlu",
+  "wordlist": ["kata1", "kata2"],
   "target_ip": "isi jika perlu",
   "username": "isi jika perlu",
   "pertanyaan": "isi pertanyaan untuk dicari di panduan (HANYA jika memilih tool_baca_panduan)",
-  "target_url": "isi jika perlu",
   "kode_python": "isi dengan kodemu di sini (ingat gunakan escape character \n untuk baris baru) jika menggunakan tool_eksekusi_python",
   "balasan_chat": "Pesanmu untuk Bos"
 }"""

